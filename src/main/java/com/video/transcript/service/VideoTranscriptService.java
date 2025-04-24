@@ -6,6 +6,6 @@ import com.video.transcript.model.TranscriptResponse;
 import java.io.IOException;
 
 public interface VideoTranscriptService {
-    TranscriptResponse generateEnrichedTranscript(TranscriptRequest transcriptRequest) throws IOException, InterruptedException;
+    TranscriptResponse generateEnrichedTranscript(TranscriptRequest transcriptRequest);
     void deleteTranscript() throws IOException, InterruptedException;
 }

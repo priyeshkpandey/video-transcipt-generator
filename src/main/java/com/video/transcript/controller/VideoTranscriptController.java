@@ -22,7 +22,7 @@ public class VideoTranscriptController {
     }
 
     @PostMapping("/enriched")
-    public ResponseEntity<TranscriptResponse> createEnrichedTranscript(@RequestBody TranscriptRequest transcriptRequest) throws IOException, InterruptedException {
+    public ResponseEntity<TranscriptResponse> createEnrichedTranscript(@RequestBody TranscriptRequest transcriptRequest) {
         TranscriptResponse transcriptResponse = videoTranscriptService.generateEnrichedTranscript(transcriptRequest);
         return new ResponseEntity<>(transcriptResponse, HttpStatus.CREATED);
     }

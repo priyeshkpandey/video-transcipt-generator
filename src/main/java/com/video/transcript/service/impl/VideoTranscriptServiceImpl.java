@@ -6,6 +6,7 @@ import com.video.transcript.model.TranscriptResponse;
 import com.video.transcript.repository.TranscriptRepository;
 import com.video.transcript.service.VideoTranscriptService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -19,13 +20,13 @@ import java.util.concurrent.TimeUnit;
 public class VideoTranscriptServiceImpl implements VideoTranscriptService {
 
     private static final String USER_DIRECTORY = System.getProperty("user.dir");
-    private static final String PYTHON_PATH = USER_DIRECTORY + File.separator + "python_venv" + File.separator + "bin" + File.separator + "python";
     private static final String VIDEO_DIRECTORY =  USER_DIRECTORY + File.separator + "tmp";
     private static final String TRANSCRIPT_FILE_NAME_PREFIX = "transcript-";
-    private static final String TRANSCRIPT_FILE_SUFFIX = "-transcript.txt";
     private static final Random random = new Random();
 
     private final TranscriptRepository transcriptRepository;
+    @Value("${python.venv.executable}")
+    private String PYTHON_PATH;
 
 
     @Autowired
@@ -34,49 +35,67 @@ public class VideoTranscriptServiceImpl implements VideoTranscriptService {
     }
 
     @Override
-    public TranscriptResponse generateEnrichedTranscript(TranscriptRequest transcriptRequest) throws IOException, InterruptedException {
-        Transcript transcript = new Transcript();
-        final String videoUrl = transcriptRequest.getVideoUrl();
+    public TranscriptResponse generateEnrichedTranscript(TranscriptRequest transcriptRequest) {
+        TranscriptResponse transcriptResponse;
         final String transcriptFileName = VIDEO_DIRECTORY + File.separator + TRANSCRIPT_FILE_NAME_PREFIX + random.nextInt(10000) + ".mp3";
-        transcript.setVideoUrl(videoUrl);
-        Transcript savedTranscript = transcriptRepository.save(transcript);
+        try {
+            Transcript transcript = new Transcript();
+            final String videoUrl = transcriptRequest.getVideoUrl();
 
-        // Generate audio file for the YouTube video URL
-        String[] videoToAudioCommand = {
-                "yt-dlp",
-                "-x",
-                "--audio-format", "mp3",
-                "-o", transcriptFileName,
-                videoUrl
-        };
+            transcript.setVideoUrl(videoUrl);
+            Transcript savedTranscript = transcriptRepository.save(transcript);
 
-        ProcessBuilder pb = new ProcessBuilder(videoToAudioCommand);
-        pb.inheritIO();
-        Process processGenerateAudio = pb.start();
-        processGenerateAudio.waitFor(15, TimeUnit.MINUTES);
+            // Generate audio file for the YouTube video URL
+            String[] videoToAudioCommand = {
+                    "yt-dlp",
+                    "-x",
+                    "--audio-format", "mp3",
+                    "-o", transcriptFileName,
+                    videoUrl
+            };
 
-        // Generate transcript from the audio file
-        String[] transcriptFromAudioCommand = {
-                PYTHON_PATH,
-                USER_DIRECTORY + File.separator + "transcript_generator.py",
-                transcriptFileName
-        };
-        pb = new ProcessBuilder(transcriptFromAudioCommand);
-        //pb.inheritIO();
-        String verboseOutputFileName = transcriptFileName + ".tmp.txt";
-        File verboseOutputFile = new File(verboseOutputFileName);
-        verboseOutputFile.createNewFile();
-        pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
-                .redirectOutput(verboseOutputFile)
-                .redirectError(ProcessBuilder.Redirect.INHERIT);
-        Process processGenerateTranscript = pb.start();
-        processGenerateTranscript.waitFor(15, TimeUnit.MINUTES);
+            ProcessBuilder pb = new ProcessBuilder(videoToAudioCommand);
+            pb.inheritIO();
+            Process processGenerateAudio = pb.start();
+            processGenerateAudio.waitFor(15, TimeUnit.MINUTES);
 
-        String transcriptText = Files.readString(verboseOutputFile.toPath());
-        transcriptText = transcriptText.substring(transcriptText.indexOf("Detected language"), transcriptText.indexOf("Saving result in file"));
-        TranscriptResponse transcriptResponse = new TranscriptResponse();
-        transcriptResponse.setVideoUrl(savedTranscript.getVideoUrl());
-        transcriptResponse.setTranscript(transcriptText);
+            // Generate transcript from the audio file
+            String[] transcriptFromAudioCommand = {
+                    PYTHON_PATH,
+                    USER_DIRECTORY + File.separator + "transcript_generator.py",
+                    transcriptFileName
+            };
+            pb = new ProcessBuilder(transcriptFromAudioCommand);
+            String verboseOutputFileName = transcriptFileName + ".tmp.txt";
+            File verboseOutputFile = new File(verboseOutputFileName);
+            verboseOutputFile.createNewFile();
+            pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectOutput(verboseOutputFile)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT);
+            Process processGenerateTranscript = pb.start();
+            processGenerateTranscript.waitFor(15, TimeUnit.MINUTES);
+
+            String transcriptText = Files.readString(verboseOutputFile.toPath());
+            transcriptText = transcriptText.substring(transcriptText.indexOf("Detected language"), transcriptText.indexOf("Saving result in file"));
+            transcriptResponse =  TranscriptResponse.builder()
+                    .videoUrl(savedTranscript.getVideoUrl())
+                    .transcript(transcriptText).build();
+        } catch (Exception ex) {
+
+            transcriptResponse = TranscriptResponse.builder()
+                    .videoUrl(transcriptRequest.getVideoUrl())
+                    .transcript("ERROR: " + ex.getMessage()).build();
+        } finally {
+            // Delete all the created files
+            try {
+                Files.deleteIfExists(Path.of(transcriptFileName));
+                Files.deleteIfExists(Path.of(transcriptFileName + ".tmp.txt"));
+                Files.deleteIfExists(Path.of(transcriptFileName + "-transcript.txt"));
+            }catch (Exception e) {
+                // Nothing can be done if files are not deleted due to exception, just logging in console
+                e.printStackTrace();
+            }
+        }
         return transcriptResponse;
     }
 
