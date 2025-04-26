@@ -53,6 +53,7 @@ public class VideoTranscriptServiceImpl implements VideoTranscriptService {
                     "-x",
                     "--audio-format", "mp3",
                     "-o", transcriptFileName,
+                    "--ffmpeg-location", "/home/priyeshpandey/yt-dlp/ffmpeg/ffmpeg-master-latest-linux64-gpl/bin",
                     videoUrl
             };
 
