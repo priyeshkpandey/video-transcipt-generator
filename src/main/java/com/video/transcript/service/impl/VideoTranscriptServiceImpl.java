@@ -27,6 +27,8 @@ public class VideoTranscriptServiceImpl implements VideoTranscriptService {
     private final TranscriptRepository transcriptRepository;
     @Value("${python.venv.executable}")
     private String PYTHON_PATH;
+    @Value("${yt-dlp.path}")
+    private String YT_DLP_PATH;
 
 
     @Autowired
@@ -47,7 +49,7 @@ public class VideoTranscriptServiceImpl implements VideoTranscriptService {
 
             // Generate audio file for the YouTube video URL
             String[] videoToAudioCommand = {
-                    "yt-dlp",
+                    YT_DLP_PATH,
                     "-x",
                     "--audio-format", "mp3",
                     "-o", transcriptFileName,
