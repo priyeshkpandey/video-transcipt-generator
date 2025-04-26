@@ -1,0 +1,4 @@
+openai-whisper
+torch
+ffmpeg
+numpy==1.26.4
